@@ -7,8 +7,9 @@ final int ScreenScale = 64;
 
 // Midi Constants
 final String MidiDevice = "Real Time Sequencer";
-final int MidiChannel = 0;
+final int MidiChannel = 16;
 final int MidiStartNote = 36; // Screen start note at bottom left
+final int MidiVelocity = 64;
 
 // Game Logic Variables
 final int GameFrameDelay = 1000;
@@ -95,11 +96,11 @@ void setup() {
   //size(screenWidth * screenScale, screenHeight * screenScale);
   size(512, 384);
   background(0);
-  
+
   // Initialize Midi
   MidiBus.list();
   midi = new MidiBus(this, -1, MidiDevice);
-  
+
   // Initialize Screen
   screen = new Pixel[ScreenHeight][ScreenWidth];
   int note = MidiStartNote;
@@ -108,7 +109,7 @@ void setup() {
       screen[i][j] = new Pixel(note++, j, i);
     }
   }
-  
+
   // Initialize Game Field
   field = new int[ScreenHeight][ScreenWidth];
   for (int i = 0; i < ScreenHeight; i++) {
@@ -116,18 +117,18 @@ void setup() {
       field[i][j] = 0;
     }
   }
-  
+
   // Initialize Images
   gameStartImage = new Image(GameStartScreen, GameStartWidth);
   gameLoseImage = new Image(GameLoseScreen, GameLoseWidth);
-  
+
   // Setup Game for Start Screen
   currentTetromino = null;
   frameTime = millis();
   gameState = GameState_Start;
 }
 
-void draw() {  
+void draw() {
   switch (gameState) {
     case GameState_Start:
       drawStart();
@@ -144,9 +145,9 @@ void draw() {
 void drawStart() {
   if (millis() - frameTime < ImageFrameDelay) return;
   frameTime = millis();
-  
+
   gameStartImage.display();
-  
+
   gameStartImage.nudge();
   if (gameStartImage.getX() >= GameStartWidth) {
     gameStartImage.reset();
@@ -156,9 +157,9 @@ void drawStart() {
 void drawLose() {
   if (millis() - frameTime < ImageFrameDelay) return;
   frameTime = millis();
-  
+
   gameLoseImage.display();
-  
+
   gameLoseImage.nudge();
   if (gameLoseImage.getX() >= GameLoseWidth) {
     gameState = GameState_Start;
@@ -169,44 +170,44 @@ void drawLose() {
 void gameUpdate() {
   if (millis() - frameTime < GameFrameDelay) return;
   frameTime = millis();
-  
+
   // Generate new tetromino
   if (currentTetromino == null) {
     int tetrominoIndex = floor(random(0, TetrominoCount));
     currentTetromino = new Tetromino(Tetrominos[tetrominoIndex]);
     if (tetrominoIndex == 3) { // Square
-      currentTetromino.move(0, -1);      
+      currentTetromino.move(0, -1);
     }
     return;
   }
-  
+
   // Move tetromino down or place
   if (!currentTetromino.move(0, 1)) {
     currentTetromino.place();
-    
+
     // Check for line clearing
     for (int i = 0; i < ScreenHeight; i++) {
       for (int j = 0; j < ScreenWidth; j++) {
         if (field[i][j] == 0) break;
         if (j == ScreenWidth - 1) {
-          
+
           // Clear line and move array down
           for (int k = i; k > 0; k--) {
             arrayCopy(field[k - 1], field[k]);
           }
-          
+
           // Clear top line
           for (int k = 0; k < ScreenWidth; k++) {
             field[0][k] = 0;
           }
-          
+
         }
       }
     }
-    
+
     // Check if final move
     if (currentTetromino.getY() <= 0) {
-      
+
       // Check to see if a top pixel is active just incase top placement also cleared a line
       boolean topActive = false;
       for (int i = 0; i < ScreenWidth; i++) {
@@ -215,32 +216,32 @@ void gameUpdate() {
           break;
         }
       }
-      
+
       if (topActive == true) {
         // Game Over
         gameState = GameState_Lose;
         return;
       }
-      
+
     }
-    
+
     // Redraw screen and ensure that we're still playing
     for (int i = 0; i < ScreenHeight; i++) {
       for (int j = 0; j < ScreenWidth; j++) {
         screen[i][j].write(field[i][j]);
       }
     }
-    
+
     // Reset Tetromino
     currentTetromino = null;
     frameTime = millis() - GameFrameDelay;
-    
+
   }
 }
 
 void keyPressed() {
   //if (key != CODED) return;
-  
+
   switch (gameState) {
     case GameState_Start:
       if (keyCode == ENTER || keyCode == java.awt.event.KeyEvent.VK_SPACE) {
@@ -250,7 +251,7 @@ void keyPressed() {
       break;
     case GameState_Play:
       if (currentTetromino == null) return;
-      
+
       switch (keyCode) {
         case UP:
           currentTetromino.rotate();
@@ -285,17 +286,17 @@ class Pixel {
   private int _active;
   private int _note;
   private int _x, _y;
-  
+
   Pixel(int note, int x, int y) {
     _note = note;
     _x = x;
     _y = y;
-    
+
     _active = 0;
     display();
     midi();
   }
-  
+
   public void write(int active) {
     write(active, false);
   }
@@ -307,11 +308,11 @@ class Pixel {
     }
     _active = active;
   }
-  
+
   public int read() {
     return _active;
   }
-  
+
   private void midi() {
     midi(_active);
   }
@@ -320,12 +321,12 @@ class Pixel {
   }
   private void midi(int note, int active) {
     if (active == 1) {
-      midi.sendNoteOn(MidiChannel, note, 127);
+      midi.sendNoteOn(MidiChannel - 1, note, MidiVelocity);
     } else {
-      midi.sendNoteOff(MidiChannel, note, 127);
+      midi.sendNoteOff(MidiChannel - 1, note, 0);
     }
   }
-  
+
   private void display() {
     display(_active);
   }
@@ -343,86 +344,86 @@ class Tetromino {
   private int[][] _matrix;
   private int _x;
   private int _y;
-  
+
   Tetromino(int[][] matrix) {
     _x = floor(ScreenWidth / 2 - TetrominoSize / 2);
     _y = 0;
     _matrix = matrix;
     display();
   }
-  
+
   // Properties
-  
+
   public int getX() {
     return _x;
   }
   public int getY() {
     return _y;
   }
-  
+
   // Translation and Rotation
-  
+
   public boolean rotate() {
     return rotateRight();
   }
   private boolean rotateRight() {
     int[][] clone = new int[TetrominoSize][TetrominoSize];
     for (int i = 0; i < TetrominoSize; i++) {
-      arrayCopy(_matrix[i], clone[i]); 
+      arrayCopy(_matrix[i], clone[i]);
     }
-    
+
     for (int i = 0; i < TetrominoSize; i++) {
       for (int j = 0; j < TetrominoSize; j++) {
         clone[i][j] = _matrix[TetrominoSize - j - 1][i];
       }
     }
-    
+
     // Check if rotated piece fits
     if (!doesFit(clone)) return false;
-    
+
     // Wipe screen and rewrite rotated matrix
     clear();
     _matrix = clone;
     display();
-    
+
     return true;
   }
   private boolean rotateLeft() {
     int[][] clone = new int[TetrominoSize][TetrominoSize];
     for (int i = 0; i < TetrominoSize; i++) {
-      arrayCopy(_matrix[i], clone[i]); 
+      arrayCopy(_matrix[i], clone[i]);
     }
-    
+
     for (int i = 0; i < TetrominoSize; i++) {
       for (int j = 0; j < TetrominoSize; j++) {
         clone[i][j] = _matrix[j][TetrominoSize - i - 1];
       }
     }
-    
+
     if (!doesFit(clone)) return false;
-    
+
     // Wipe screen and rewrite rotated matrix
     clear();
     _matrix = clone;
     display();
-    
+
     return true;
   }
-  
+
   public boolean move(int dX, int dY) {
     if (!doesFit(_x + dX, _y + dY)) return false;
-    
+
     // Clear and update
     clear();
     _x += dX;
     _y += dY;
     display();
-    
+
     return true;
   }
-  
+
   // Collision
-  
+
   private boolean doesFit(int[][] matrix) {
     return doesFit(matrix, _x, _y);
   }
@@ -433,24 +434,24 @@ class Tetromino {
     for (int i = y; i < y + TetrominoSize; i++) {
       for (int j = x; j < x + TetrominoSize; j++) {
         if (matrix[i - y][j - x] == 0) continue;
-          
+
         // Check boundaries
         if (j < 0 || j >= ScreenWidth || i >= ScreenHeight) {
           return false;
         }
-        
+
         // Check playfield
         if (i >= 0 && field[i][j] == 1) {
           return false;
         }
       }
     }
-    
+
     return true;
   }
-  
+
   // Playfield
-  
+
   public void place() {
     place(_x, _y);
   }
@@ -458,18 +459,18 @@ class Tetromino {
     for (int i = y; i < y + TetrominoSize; i++) {
       for (int j = x; j < x + TetrominoSize; j++) {
         if (_matrix[i - y][j - x] == 0) continue;
-        
+
         // Check boundaries
         if (j < 0 || j >= ScreenWidth || i < 0 || i > ScreenHeight) continue;
-        
+
         // Write to playfield
         field[i][j] = 1;
       }
     }
   }
-  
+
   // Display
-  
+
   public void display() {
     display(1);
   }
@@ -491,28 +492,28 @@ class Image {
   private int[][] _image;
   private int _width;
   private int _x;
-  
+
   Image(int[][] image, int width) {
     _image = image;
     _width = width;
     _x = -ScreenWidth;
   }
-  
+
   public int getX() {
     return _x;
   }
   public void setX(int x) {
     _x = x;
   }
-  
+
   public void nudge() {
     _x++;
   }
-  
+
   public void reset() {
     _x = -ScreenWidth;
   }
-  
+
   public void display() {
     for (int i = 0; i < ScreenHeight; i++) {
       for (int j = 0; j < ScreenWidth; j++) {
@@ -524,5 +525,5 @@ class Image {
       }
     }
   }
-  
+
 }
